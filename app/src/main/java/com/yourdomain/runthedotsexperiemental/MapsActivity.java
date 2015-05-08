@@ -6,6 +6,7 @@ import android.location.Location;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.widget.TextView;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -22,6 +23,11 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 
+import org.w3c.dom.Text;
+
+import java.text.DateFormat;
+import java.util.Date;
+
 public class MapsActivity extends FragmentActivity implements
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
@@ -31,19 +37,25 @@ public class MapsActivity extends FragmentActivity implements
 
     private GoogleApiClient mGoogleApiClient;
 
-    private CameraPosition cameraPosition;
-    private LocationRequest mLocationRequest;
+    private TextView mLatitudeText;
+    private TextView mLongitudeText;
+    private TextView mLastUpdateTimeTextView;
 
-    Location location;
+    boolean mRequestingLocationUpdates;
 
-    Location lastLocation;
-    double currentLatitude;
-    double currentLongitude;
-    LatLng latLng;
+    Location mCurrentLocation;
+    Location mLastLocation;
+
+    LocationRequest mLocationRequest;
+
 
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
 
     public static final String TAG = MapsActivity.class.getSimpleName();
+    private String mLastUpdateTime;
+    private android.os.Bundle savedInstanceState;
+    private String REQUESTING_LOCATION_UPDATES_KEY;
+    private String LOCATION_KEY;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,7 +70,10 @@ public class MapsActivity extends FragmentActivity implements
                 .build();
 
         // Create the LocationRequest object
-        mLocationRequest = LocationRequest.create()
+    }
+
+    protected void createLocationRequest() {
+        LocationRequest mLocationRequest = new LocationRequest()
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
                 .setInterval(3 * 1000)        // 10 seconds, in milliseconds
                 .setFastestInterval(3 * 1000); // 1 second, in milliseconds
@@ -68,17 +83,21 @@ public class MapsActivity extends FragmentActivity implements
     protected void onResume() {
         super.onResume();
         setUpMapIfNeeded();
-        mGoogleApiClient.connect();
+        if (mGoogleApiClient.isConnected() && !mRequestingLocationUpdates) {
+            startLocationUpdates();
+        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        if (mGoogleApiClient.isConnected()) {
-            LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
-            mGoogleApiClient.disconnect();
-        }
+        stopLocationUpdates();
     }
+
+    protected void stopLocationUpdates() {
+        LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
+    }
+
 
     /**
      * Sets up the map if it is possible to do so (i.e., the Google Play services APK is correctly
@@ -115,42 +134,24 @@ public class MapsActivity extends FragmentActivity implements
      * This should only be called once and when we are sure that {@link #mMap} is not null.
      */
     private void setUpMap() {
-        //mMap.addMarker(new MarkerOptions(handleNewLocation(currentLatitude);
-        cameraPosition = new CameraPosition.Builder()
-                .target(new LatLng(57.162238, 9.734942))
-                .zoom(19.5f)
-                .tilt(0)
-                .bearing(9)
-                .build();
+
     }
 
 
     @Override
-    public void onConnected(Bundle bundle) {
-        Log.i(TAG, "Location services connected.");
-        lastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
-        if (lastLocation != null) {
-            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+    public void onConnected(Bundle connectionHint) {
+        mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+        if(mLastLocation != null) {
+            mLatitudeText.setText(String.valueOf(mLastLocation.getLatitude()));
+            mLatitudeText.setText(String.valueOf(mLastLocation.getLongitude()));
         }
-        else {
-            handleNewLocation(location);
-        };
+        if(mRequestingLocationUpdates) {
+            startLocationUpdates();
+        }
     }
 
-    private void handleNewLocation(Location location) {
-        currentLatitude = location.getLatitude();
-        currentLongitude = location.getLongitude();
-
-        latLng = new LatLng(currentLatitude, currentLongitude);
-
-
-
-        MarkerOptions options = new MarkerOptions()
-                .position(latLng)
-                .title("I am here!");
-        mMap.addMarker(options);
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
-        Log.d(TAG, location.toString());
+    protected void startLocationUpdates() {
+        LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
     }
 
     @Override
@@ -172,13 +173,18 @@ public class MapsActivity extends FragmentActivity implements
         }
     }
 
+
     @Override
     public void onLocationChanged(Location location) {
-        handleNewLocation(location);
-        Polyline line = mMap.addPolyline(new PolylineOptions()
-                //.add(new LatLng(currentLatitude, currentLongitude), new LatLng(lastLocation.getLatitude(), lastLocation.getLongitude()))
-                .add(new LatLng(lastLocation.getLatitude(), lastLocation.getLongitude()), new LatLng(currentLatitude, currentLongitude))
-                .width(5)
-                .color(Color.RED));
+        //handleNewLocation(location);
+        mCurrentLocation = location;
+        mLastUpdateTime = DateFormat.getTimeInstance().format(new Date());
+        updateUI();
+    }
+
+    private void updateUI() {
+        mLatitudeText.setText(String.valueOf(mCurrentLocation.getLatitude()));
+        mLongitudeText.setText(String.valueOf(mCurrentLocation.getLongitude()));
+        mLastUpdateTimeTextView.setText(mLastUpdateTime);
     }
 }
